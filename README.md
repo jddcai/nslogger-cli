@@ -30,11 +30,14 @@ AI 工具(Bash 调用) / 人(--pretty)
 bash install.sh
 ```
 
-脚本会安装依赖、编译,并通过 `npm link` 把 `nslogger-cli` 注册为全局命令,
-同时在 `~/.nslogger-cli/config.json` 写入默认配置。
+脚本会依次执行 `npm install` → `tsc` 构建 → `npm link`(把 `nslogger-cli` 注册为全局命令),
+并在 `~/.nslogger-cli/config.json` 写入默认配置。脚本幂等,可重复执行。
 
 > 装完若提示找不到 `nslogger-cli`,把 npm 全局 bin 目录加入 PATH:
 > `echo "$(npm prefix -g)/bin"`。
+>
+> 若构建失败(如 Node < 18、原生模块 `better-sqlite3` 编译报错),请先解决环境问题再重试,
+> 不要绕过。
 
 ## 配置
 
@@ -115,6 +118,22 @@ nslogger-cli query --keyword InspirationFeed --pretty
 | `help [--json]` | 帮助(`--json` 输出机器可读的命令清单) |
 
 全局选项:`--db <path>`、`--config <path>`、`--pretty`(默认输出 JSON)。
+
+## 启用 Claude Code skill
+
+本仓库自带一个 Claude Code skill(`skills/nslogger-cli/`),让 Claude 能自动识别"看日志"类
+意图并调用 `nslogger-cli`。它放在独立目录 `skills/nslogger-cli/` 下,**不在** `.claude/skills/`,
+因此不会被 Claude Code 自动发现。要启用,把这个目录软链或复制到 skills 搜索路径:
+
+```bash
+# 全局可用(所有项目)
+ln -s "$(pwd)/skills/nslogger-cli" ~/.claude/skills/nslogger-cli
+
+# 或仅对某个项目可用
+ln -s "$(pwd)/skills/nslogger-cli" <目标项目>/.claude/skills/nslogger-cli
+```
+
+> 用软链(`ln -s`)便于随仓库更新;也可以直接 `cp -r` 复制。
 
 ## 给 AI 工具用
 

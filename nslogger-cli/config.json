@@ -3,10 +3,10 @@
   "watch_dirs": [],
   "sources": {
     "nslogger_file": {
-      "enabled": true
+      "enabled": false
     },
     "nslogger_tcp": {
-      "enabled": false,
+      "enabled": true,
       "port": 50000,
       "bonjour": true,
       "ssl": true,
