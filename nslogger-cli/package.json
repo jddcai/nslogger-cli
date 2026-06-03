@@ -1,0 +1,28 @@
+{
+  "name": "nslogger-cli",
+  "version": "0.1.0",
+  "description": "CLI for mobile app logs (NSLogger and more)",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "nslogger-cli": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "serve": "node dist/index.js serve",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "bonjour-service": "^1.4.0",
+    "bplist-parser": "^0.3.2",
+    "chokidar": "^3.6.0",
+    "selfsigned": "^2.4.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "db_path": "~/.nslogger-cli/logs.db",
+  "watch_dirs": [],
+  "sources": {
+    "nslogger_file": {
+      "enabled": true
+    },
+    "nslogger_tcp": {
+      "enabled": false,
+      "port": 50000,
+      "bonjour": true,
+      "ssl": true,
+      "service_name": ""
+    }
+  }
+}
