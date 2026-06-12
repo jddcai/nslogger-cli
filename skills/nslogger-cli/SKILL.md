@@ -1,72 +1,82 @@
 ---
 name: nslogger-cli
 description: >-
-  查询移动端 App 日志（NSLogger）以辅助调试：列出会话、筛选/搜索日志、查看错误、
-  取某条日志的上下文、按线程/时间范围追踪、导入 .nslogger 文件。当用户说 "看看 App 日志"、
-  "有什么错误/崩溃日志"、"nslogger"、"看一下日志会话"、"mobile app logs"、"查日志"、"加载 .nslogger 文件" 等涉及移动端日志排查的表达时触发。
-  注意：本 skill 只做查询/读取；要实时接收设备日志，请提示用户自行运行 `nslogger-cli serve`。
+  Query mobile app logs (NSLogger) for debugging: list sessions, filter/search logs,
+  view errors, get context around a log entry, trace by thread or time range, import
+  .nslogger files. Trigger when the user says "check app logs", "any errors/crashes",
+  "nslogger", "mobile app logs", "load .nslogger file", or Chinese equivalents such as
+  "看看 App 日志"、"有什么错误/崩溃日志"、"看一下日志会话"、"查日志"、
+  "加载 .nslogger 文件"、"移动端日志" and similar log-debugging expressions.
+  Note: this skill only queries/reads; to receive live device logs, prompt the user to
+  run `nslogger-cli serve` themselves.
 argument-hint: <optional: session id / keyword / .nslogger file>
 user-invocable: true
 allowed-tools: Bash, Read
 ---
 
-# nslogger-cli — 查询移动端 App 日志
+# nslogger-cli — Query Mobile App Logs
 
-`nslogger-cli` 把移动端（NSLogger 协议，经 TCP/Bonjour/SSL 或 `.nslogger` 文件）采集的日志写入一个
-共享的 SQLite 库，并提供一组一次性查询命令，便于 AI 辅助排查问题。
+`nslogger-cli` collects logs from mobile apps (NSLogger protocol, via TCP/Bonjour/SSL or
+`.nslogger` files) into a shared SQLite database and provides one-shot query commands for
+AI-assisted debugging.
 
-**输出约定**：默认输出 JSON，形如 `{"success":true,"data":[...],"total":N}` 到 stdout，退出码 0；
-出错时输出 `{"success":false,"message":"..."}` 到 stderr 且退出码非零；空结果返回空数组（不算错误）。
-加 `--pretty` 可得人类可读格式。解析时取 `data` 数组，用 `total` 判断是否有数据。
+**Output convention**: defaults to JSON — `{"success":true,"data":[...],"total":N}` to
+stdout, exit code 0; on error `{"success":false,"message":"..."}` to stderr with a non-zero
+exit code; empty results return an empty array (not an error). Add `--pretty` for
+human-readable output. Parse by reading the `data` array; use `total` to check for results.
 
-## Step 0 — 确保二进制可用
+## Step 0 — Verify the binary is available
 
-每次开始前先确认 `nslogger-cli` 在 PATH 上：
+Before starting, confirm `nslogger-cli` is on the PATH:
 
 ```bash
-command -v nslogger-cli >/dev/null 2>&1 || echo "未安装"
+command -v nslogger-cli >/dev/null 2>&1 || echo "not installed"
 ```
 
-若缺失，**提示用户按仓库 README 的「安装」一节执行 `bash install.sh`**，安装完成后再继续；
-不要在本 skill 内自行构建或绕过。
+If missing, **prompt the user to run `bash install.sh`** as described in the repo README,
+then continue. Do not attempt to build or work around this inside the skill.
 
-## 命令速查
+## Command reference
 
-先用 `sessions` 拿到 `session_id`，再按需下钻。全部命令复用 CLI 既有参数，**不要臆造新 flag**。
+Run `sessions` first to get a `session_id`, then drill down as needed.
+Use only existing CLI flags — **do not invent new ones**.
 
-| 意图 | 命令 |
+| Intent | Command |
 | --- | --- |
-| 列出所有日志会话 | `nslogger-cli sessions` |
-| 筛选/搜索日志 | `nslogger-cli query [--session ID] [--tag T] [--level N] [--keyword K] [--limit N] [--offset N]` |
-| 只看告警/错误 | `nslogger-cli errors [--session ID] [--level N]`（默认 level ≥ 3） |
-| 某条日志的上下文 | `nslogger-cli context <log_id> [--before N] [--after N]` |
-| 追踪某线程 | `nslogger-cli trace-thread <session_id> <thread_id>` |
-| 追踪某时间段（毫秒） | `nslogger-cli trace-range <session_id> --from <ms> --to <ms>` |
-| 导入 .nslogger 文件 | `nslogger-cli load <file.nslogger>`（打印新的 `session_id`） |
-| 清空某会话（危险） | `nslogger-cli clear <session_id>` |
+| List all log sessions | `nslogger-cli sessions` |
+| Filter / search logs | `nslogger-cli query [--session ID] [--tag T] [--level N] [--keyword K] [--limit N] [--offset N]` |
+| Warnings and errors only | `nslogger-cli errors [--session ID] [--level N]` (default level ≥ 3) |
+| Context around a log entry | `nslogger-cli context <log_id> [--before N] [--after N]` |
+| Trace a thread | `nslogger-cli trace-thread <session_id> <thread_id>` |
+| Trace a time window (ms) | `nslogger-cli trace-range <session_id> --from <ms> --to <ms>` |
+| Import a .nslogger file | `nslogger-cli load <file.nslogger>` (prints the new `session_id`) |
+| Delete a session (destructive) | `nslogger-cli clear <session_id>` |
 
-**全局参数**（任意命令可加）：`--db <path>` 覆盖数据库路径，`--config <path>` 覆盖配置文件，
-`--pretty` 人类可读输出。
+**Global flags** (any command): `--db <path>` override database path, `--config <path>`
+override config file, `--pretty` human-readable output.
 
-## 典型排查流程
+## Typical debugging workflow
 
-1. `nslogger-cli sessions` → 选定目标 `session_id`。
-2. `nslogger-cli errors --session <id>` 或 `nslogger-cli query --session <id> --keyword <K>` 定位可疑日志。
-3. 拿到某条 `log_id` 后用 `nslogger-cli context <log_id>` 看上下文；或用 `trace-thread` /
-   `trace-range` 按线程、时间窗下钻。
-4. 解析返回的 `data` 数组做分析；若 `total` 为 0，进入下一节。
+1. `nslogger-cli sessions` → pick the target `session_id`.
+2. `nslogger-cli errors --session <id>` or `nslogger-cli query --session <id> --keyword <K>` to locate suspicious entries.
+3. Take a `log_id` and run `nslogger-cli context <log_id>` for surrounding context; or use `trace-thread` / `trace-range` to drill down by thread or time window.
+4. Parse the returned `data` array for analysis; if `total` is 0, see the next section.
 
-## 没有数据 / 实时采集（serve 的处理）
+## No data / live ingestion (handling `serve`)
 
-本 skill **不**在后台启动 `serve`。当 `sessions` 为空、或用户期望实时设备日志时：
+This skill does **not** start `serve` in the background. When `sessions` is empty or the
+user expects live device logs:
 
-- **提示用户自行运行** 接收端，例如：`nslogger-cli serve`
-  （按 `~/.nslogger-cli/config.json` 启用 TCP/Bonjour/SSL，Ctrl-C 停止），启动并产生日志后再回来查询。
-- 若用户手头是一份静态抓包文件，改为建议 `nslogger-cli load <file.nslogger>` 导入后查询。
+- **Prompt the user to start the receiver themselves**: `nslogger-cli serve`
+  (enables TCP/Bonjour/SSL per `~/.nslogger-cli/config.json`, Ctrl-C to stop); come back
+  to query once logs are flowing.
+- If the user has a static capture file, suggest `nslogger-cli load <file.nslogger>` to
+  import it first.
 
-## 注意事项
+## Notes
 
-- `clear` 会删除该会话全部日志，**执行前先与用户确认**。
-- 数据库默认在 `~/.nslogger-cli/logs.db`；`serve`（写入方）与查询命令（读取方）共享同一个库。
-- 配置查找顺序：`--config` → 环境变量 `$NSLOGGER_CLI_CONFIG` → `~/.nslogger-cli/config.json` →
-  当前目录 `./config.json`。
+- `clear` deletes all logs for that session — **confirm with the user before running it**.
+- The database defaults to `~/.nslogger-cli/logs.db`; `serve` (writer) and query commands
+  (readers) share the same database.
+- Config lookup order: `--config` → `$NSLOGGER_CLI_CONFIG` → `~/.nslogger-cli/config.json`
+  → `./config.json`.
