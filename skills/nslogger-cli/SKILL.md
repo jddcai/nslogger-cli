@@ -3,8 +3,7 @@ name: nslogger-cli
 description: >-
   查询移动端 App 日志（NSLogger）以辅助调试：列出会话、筛选/搜索日志、查看错误、
   取某条日志的上下文、按线程/时间范围追踪、导入 .nslogger 文件。当用户说 "看看 App 日志"、
-  "有什么错误/崩溃日志"、"nslogger"、"看一下日志会话"、"trace 一下这个线程"、
-  "mobile app logs"、"查日志"、"加载 .nslogger 文件" 等涉及移动端日志排查的表达时触发。
+  "有什么错误/崩溃日志"、"nslogger"、"看一下日志会话"、"mobile app logs"、"查日志"、"加载 .nslogger 文件" 等涉及移动端日志排查的表达时触发。
   注意：本 skill 只做查询/读取；要实时接收设备日志，请提示用户自行运行 `nslogger-cli serve`。
 argument-hint: <optional: session id / keyword / .nslogger file>
 user-invocable: true
