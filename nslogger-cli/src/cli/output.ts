@@ -1,11 +1,16 @@
 import type { LogEntry } from '../sources/types.js';
+import { truncateToWidth } from './width.js';
 
 export interface CommandResult {
   data: unknown;
   total?: number;
 }
 
-const LEVELS = ['NOISE', 'DEBUG', 'INFO', 'WARN', 'ERROR'];
+const LEVEL_INITIALS = ['N', 'D', 'I', 'W', 'E'];
+/** Width assumed when stdout is not a TTY (piped, redirected, or run by an AI tool). */
+const FALLBACK_WIDTH = 120;
+/** Never truncate below this — a line narrower than this shows nothing useful. */
+const MIN_WIDTH = 40;
 
 export function formatResult(result: CommandResult, pretty: boolean): string {
   if (pretty) return renderPretty(result);
@@ -24,11 +29,20 @@ export function emitError(message: string): void {
   process.stderr.write(formatError(message) + '\n');
 }
 
+function terminalWidth(): number {
+  return Math.max(MIN_WIDTH, process.stdout.columns || FALLBACK_WIDTH);
+}
+
 function renderPretty(result: CommandResult): string {
-  const { data } = result;
+  const { data, total } = result;
   if (Array.isArray(data)) {
     if (data.length === 0) return '(empty)';
-    if (looksLikeLogs(data)) return (data as LogEntry[]).map(formatLogLine).join('\n');
+    if (looksLikeLogs(data)) {
+      const width = terminalWidth();
+      const lines = (data as LogEntry[]).map((e) => formatLogLine(e, width));
+      lines.push(formatSummary(data.length, total));
+      return lines.join('\n');
+    }
     return data.map((d) => JSON.stringify(d)).join('\n');
   }
   return JSON.stringify(data, null, 2);
@@ -39,9 +53,29 @@ function looksLikeLogs(arr: unknown[]): boolean {
   return !!f && 'message' in f && 'timestamp' in f && 'level' in f;
 }
 
-function formatLogLine(e: LogEntry): string {
-  const ts = new Date(e.timestamp).toISOString();
-  const lvl = (LEVELS[e.level] ?? String(e.level)).padEnd(5);
-  const tag = e.tag ? `[${e.tag}] ` : '';
-  return `${ts} ${lvl} ${tag}${e.message}`;
+function formatSummary(shown: number, total?: number): string {
+  if (total == null || total <= shown) return `${shown} total`;
+  return `... ${shown} shown, ${total} total (use --offset / --limit for the rest)`;
+}
+
+/** Local wall-clock time of day; the date is rarely useful when scanning a single session. */
+export function formatTimestamp(ms: number): string {
+  const d = new Date(ms);
+  const p = (n: number, w = 2) => String(n).padStart(w, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
+}
+
+/** One log entry compressed to a single line that fits `width`.
+ *  Multi-line messages keep only their first line, marked with ⏎+N. */
+export function formatLogLine(e: LogEntry, width: number): string {
+  const id = e.id != null ? `#${e.id}` : '';
+  const lvl = LEVEL_INITIALS[e.level] ?? String(e.level);
+  const tag = e.tag ? `[${e.tag}]` : '';
+
+  const messageLines = e.message.split('\n');
+  const extra = messageLines.length - 1;
+  const message = messageLines[0] + (extra > 0 ? `⏎+${extra}` : '');
+
+  const head = `${id.padStart(6)}  ${formatTimestamp(e.timestamp)}  ${lvl}  ${tag ? tag + '  ' : ''}`;
+  return truncateToWidth(head + message, width);
 }
