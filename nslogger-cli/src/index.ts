@@ -14,13 +14,15 @@ const HELP = `nslogger-cli <command> [options]
 Commands:
   serve                                   Start the log receiver (TCP + file watch). Foreground; Ctrl-C to stop.
   sessions                                List all log sessions
-  query [--session --tag --level --keyword --limit --offset]
+  query [--session --tag --level --keyword --limit --offset] [--tui]
+                                          --tui browses the results interactively (TTY only)
+  watch [--session --tag --level --keyword]  Interactive live view; follows new logs. TTY only.
   context <log_id> [--before --after]     Surrounding entries around a log id
   trace-thread <session_id> <thread_id>   All entries for one thread
   trace-range <session_id> --from <ms> --to <ms>
   errors [--session --level]              Warn/error entries (default level>=3)
   load <file.nslogger>                    Import a file; prints its session_id
-  clear <session_id>                      Delete a session
+  clear <session_id> | --all              Delete one session, or every session
   help [--json]                           Show this help (or machine-readable list)
 
 Global options:
@@ -32,13 +34,14 @@ Global options:
 const COMMANDS_JSON = [
   { name: 'serve', args: [], flags: [] },
   { name: 'sessions', args: [], flags: [] },
-  { name: 'query', args: [], flags: ['session', 'tag', 'level', 'keyword', 'limit', 'offset'] },
+  { name: 'query', args: [], flags: ['session', 'tag', 'level', 'keyword', 'limit', 'offset', 'tui'] },
   { name: 'context', args: ['log_id'], flags: ['before', 'after'] },
   { name: 'trace-thread', args: ['session_id', 'thread_id'], flags: [] },
   { name: 'trace-range', args: ['session_id'], flags: ['from', 'to'] },
   { name: 'errors', args: [], flags: ['session', 'level'] },
   { name: 'load', args: ['file'], flags: [] },
-  { name: 'clear', args: ['session_id'], flags: [] },
+  { name: 'clear', args: ['session_id'], flags: ['all'] },
+  { name: 'watch', args: [], flags: ['session', 'tag', 'level', 'keyword'] },
 ];
 
 async function main(): Promise<void> {

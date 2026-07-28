@@ -44,6 +44,22 @@ test('cmdClear validates session id', () => withDb(async (db) => {
   assert.throws(() => cmds.cmdClear(store, { command: 'clear', positionals: [], flags: {} }), /requires a <session_id>/);
 }));
 
+test('cmdClear --all wipes every session and log', () => withDb(async (db) => {
+  const store = await seed(db);
+  const r = cmds.cmdClear(store, { command: 'clear', positionals: [], flags: { all: true } });
+  assert.deepEqual(r.data, { cleared_sessions: 1, cleared_logs: 2 });
+  assert.equal(cmds.cmdSessions(store).total, 0);
+  assert.equal(cmds.cmdQuery(store, { command: 'query', positionals: [], flags: {} }).total, 0);
+}));
+
+test('cmdClear rejects --all together with a session id', () => withDb(async (db) => {
+  const store = await seed(db);
+  assert.throws(
+    () => cmds.cmdClear(store, { command: 'clear', positionals: ['sess1'], flags: { all: true } }),
+    /not both/,
+  );
+}));
+
 test('cmdTraceThread returns thread entries', () => withDb(async (db) => {
   const store = await seed(db);
   const r = cmds.cmdTraceThread(store, { command: 'trace-thread', positionals: ['sess1', 't1'], flags: {} });

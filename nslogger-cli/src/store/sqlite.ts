@@ -158,6 +158,15 @@ export class LogStore {
     })();
   }
 
+  /** Delete every session and log. Returns how many rows each delete removed. */
+  clearAll(): { sessions: number; logs: number } {
+    return this.db.transaction(() => {
+      const logs = this.db.prepare('DELETE FROM logs').run().changes;
+      const sessions = this.db.prepare('DELETE FROM sessions').run().changes;
+      return { sessions, logs };
+    })();
+  }
+
   sessionExists(sessionId: string): boolean {
     return !!this.db.prepare('SELECT 1 FROM sessions WHERE session_id = ?').get(sessionId);
   }

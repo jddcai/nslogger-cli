@@ -4,7 +4,7 @@ import { NSLoggerFileSource } from '../sources/nslogger-file.js';
 import type { LogEntry, SessionInfo } from '../sources/types.js';
 import type { CommandResult } from '../cli/output.js';
 import type { ParsedArgs } from '../cli/args.js';
-import { flagStr, flagNum } from '../cli/args.js';
+import { flagStr, flagNum, flagBool } from '../cli/args.js';
 
 export function cmdSessions(store: LogStore): CommandResult {
   const sessions = store.listSessions();
@@ -74,7 +74,14 @@ export async function cmdLoad(store: LogStore, args: ParsedArgs): Promise<Comman
 
 export function cmdClear(store: LogStore, args: ParsedArgs): CommandResult {
   const sessionId = args.positionals[0];
-  if (!sessionId) throw new Error('clear requires a <session_id>');
+  const all = flagBool(args.flags, 'all');
+
+  if (all && sessionId) throw new Error('clear takes either <session_id> or --all, not both');
+  if (all) {
+    const { sessions, logs } = store.clearAll();
+    return { data: { cleared_sessions: sessions, cleared_logs: logs } };
+  }
+  if (!sessionId) throw new Error('clear requires a <session_id>, or --all to wipe everything');
   store.clearSession(sessionId);
   return { data: { cleared: sessionId } };
 }
