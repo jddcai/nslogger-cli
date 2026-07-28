@@ -45,7 +45,7 @@ bash install.sh
 
 ```json
 {
-  "db_path": "~/.nslogger-cli/logs.db",
+  "db_path": "/tmp/nslogger-cli/logs.db",
   "watch_dirs": [],
   "sources": {
     "nslogger_file": { "enabled": true },
@@ -59,7 +59,7 @@ bash install.sh
 
 | 字段 | 说明 |
 | --- | --- |
-| `db_path` | SQLite 数据库路径(自动创建) |
+| `db_path` | SQLite 数据库路径(自动创建)。默认放在 `/tmp` 下,由系统自动回收过期缓存——日志属于可再生缓存,清掉后重新导入或重新接收即可;想长期保留就改到别的路径 |
 | `watch_dirs` | `serve` 时自动监听的目录,放入 `.nslogger` 文件即导入 |
 | `nslogger_tcp.enabled` | 是否启用 TCP 实时接收(每个连接 = 一个 session) |
 | `nslogger_tcp.port` | TCP 监听端口(默认 50000) |
@@ -74,6 +74,40 @@ bash install.sh
 nslogger-cli load ~/Downloads/app.nslogger        # 导入,打印 session_id
 nslogger-cli query --keyword InspirationFeed --pretty
 ```
+
+### 交互式看日志
+
+`query --pretty` 每条日志压成一行(`#id  时间  级别  [tag]  内容`,按终端宽度截断,多行消息标
+`⏎+N`)。想在结果里逐条移动、展开某条看详情,加 `--tui`;想实时跟设备日志,用 `watch`:
+
+```bash
+nslogger-cli query --keyword InspirationFeed --tui       # 浏览已有结果
+nslogger-cli watch --keyword InspirationFeed --level 3   # 实时,持续跟随新日志
+nslogger-cli watch InspirationFeed                       # 直接写关键词,等价于 --keyword
+```
+
+两者是同一个交互界面,都从最新的命中开始。`query --tui` 进去是暂停态(且不受 `--limit` /
+`--offset` 影响);`watch` 进去就持续跟随。
+
+| 按键 | 作用 |
+| --- | --- |
+| `↑` `↓`(或 `k` `j`)/ `PgUp` `PgDn` | 移动选中行(会暂停跟随) |
+| `⏎` | 展开/收起该条(file:line、函数、线程、完整消息) |
+| `/` | 修改过滤条件——`tag:net level:3 session:s1 自由文本`,对存量和新日志同时生效 |
+| `f` | 暂停/恢复跟随 |
+| `g` / `G` | 跳到顶部/底部(`G` 会恢复跟随) |
+| `q` | 退出 |
+
+只要动了列表——移动选中行、展开某条、打开过滤输入——就会自动暂停跟随,新日志不会把正在看的
+内容顶走。暂停后只有 `f` 或 `G` 能恢复跟随。
+
+暂停期间新日志只计数、**不入列**(头部显示 `+N new`),恢复时一次性快进补上。如果照收不误,
+日志一多就会把你正在看的内容挤出 5000 条环形缓冲,画面照样会滚——这正是暂停失效的根因。
+
+两种视图都从**最新**的 500 条命中开始,再往后跟随,不会从库头往前扫。库大到 GB 级时,这个
+方向决定了是秒开还是每次刷新卡三十秒。想看更早的记录,收窄过滤条件或用 `query --offset`。
+
+两者都需要终端;被管道调用或由 AI 工具驱动时会直接报错退出,那种场景用普通 `query`。
 
 ### 实时接收(TCP)
 
@@ -114,7 +148,10 @@ nslogger-cli query --keyword InspirationFeed --pretty
 | `trace-range <session_id> --from <ms> --to <ms>` | 时间段内的日志 |
 | `errors [--session --level]` | warn/error 日志(默认 level≥3) |
 | `load <file.nslogger>` | 导入文件,打印 session_id |
+| `query ... --tui` | 在结果里交互浏览、展开单条(需要 TTY) |
+| `watch [--session --tag --level --keyword]` | 交互式实时查看,持续跟随新日志(需要 TTY) |
 | `clear <session_id>` | 删除一个 session |
+| `clear --all` | 删除全部 session 和日志 |
 | `help [--json]` | 帮助(`--json` 输出机器可读的命令清单) |
 
 全局选项:`--db <path>`、`--config <path>`、`--pretty`(默认输出 JSON)。

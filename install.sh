@@ -49,6 +49,8 @@ cat <<EOF
                       nslogger-cli serve
   Read a file:        nslogger-cli load <path.nslogger>
                       nslogger-cli query --keyword <text> --pretty
+  Live view (TUI):    nslogger-cli watch --keyword <text>
+
   Upgrading? An existing $CONFIG_HOME/config.json is left untouched, so it
   still points at the old ~/.nslogger-cli/logs.db. Edit "db_path" to switch.
 

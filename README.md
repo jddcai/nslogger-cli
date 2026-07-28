@@ -43,7 +43,7 @@ Default config at `~/.nslogger-cli/config.json`:
 
 ```json
 {
-  "db_path": "~/.nslogger-cli/logs.db",
+  "db_path": "/tmp/nslogger-cli/logs.db",
   "watch_dirs": [],
   "sources": {
     "nslogger_file": { "enabled": true },
@@ -57,7 +57,7 @@ Query commands also accept `--db <path>` to point directly at a database without
 
 | Field | Description |
 | --- | --- |
-| `db_path` | SQLite database path (auto-created) |
+| `db_path` | SQLite database path (auto-created). Defaults under `/tmp` so the OS reclaims stale log caches — logs are a disposable cache, re-import or re-receive to rebuild. Point it elsewhere to keep them |
 | `watch_dirs` | Directories `serve` watches; any `.nslogger` file dropped in is auto-imported |
 | `nslogger_tcp.enabled` | Enable live TCP ingestion (one connection = one session) |
 | `nslogger_tcp.port` | TCP listen port (default 50000) |
@@ -72,6 +72,46 @@ Query commands also accept `--db <path>` to point directly at a database without
 nslogger-cli load ~/Downloads/app.nslogger   # import, prints session_id
 nslogger-cli query --keyword InspirationFeed --pretty
 ```
+
+### Reading logs interactively
+
+`query --pretty` prints one compact line per entry (`#id  time  level  [tag]  message`,
+truncated to the terminal width, multi-line messages marked `⏎+N`). To browse those results —
+move through them and expand any entry — add `--tui`; to follow a device live, use `watch`:
+
+```bash
+nslogger-cli query --keyword InspirationFeed --tui   # browse an existing result set
+nslogger-cli watch --keyword InspirationFeed --level 3  # live, follows new logs
+nslogger-cli watch InspirationFeed                   # a bare word means --keyword
+```
+
+Both open the same interactive view on the most recent matching entries. `query --tui` starts
+paused (and ignores `--limit` / `--offset`); `watch` starts following.
+
+| Key | Action |
+| --- | --- |
+| `↑` `↓` (or `k` `j`) / `PgUp` `PgDn` | Move the selection (pauses following) |
+| `⏎` | Expand / collapse the entry (file:line, function, thread, full message) |
+| `/` | Edit the filter — `tag:net level:3 session:s1 free text`; applies to old and new entries |
+| `f` | Pause / resume following |
+| `g` / `G` | Jump to the top / bottom (`G` resumes following) |
+| `q` | Quit |
+
+Following pauses as soon as you touch the list — moving the selection, expanding an entry, or
+opening the filter prompt — so incoming logs can never scroll away what you are reading. Once
+paused, only `f` or `G` resumes it.
+
+While paused, incoming logs are counted but **not** added to the view (the header shows
+`+N new`); resuming fast-forwards through them. Buffering them would push what you are reading
+out of the 5000-entry ring buffer, which on a chatty app makes a "paused" screen keep moving.
+
+Both views open on the **most recent** 500 matching entries and follow from there — they never
+scan forward from the beginning of the database. On a multi-GB capture that distinction is the
+difference between opening instantly and blocking for half a minute per refresh. To read older
+entries, narrow the filter or use `query --offset`.
+
+Both need a terminal; in a pipe or when driven by an AI tool they exit with an error — use
+plain `query` there.
 
 ### Live TCP ingestion
 
@@ -112,7 +152,10 @@ nslogger-cli query --keyword InspirationFeed --pretty
 | `trace-range <session_id> --from <ms> --to <ms>` | Logs within a time window |
 | `errors [--session --level]` | Warnings/errors (default level ≥ 3) |
 | `load <file.nslogger>` | Import a file, prints session_id |
+| `query ... --tui` | Browse the results interactively (requires a TTY) |
+| `watch [--session --tag --level --keyword]` | Interactive live view; follows new logs. Requires a TTY |
 | `clear <session_id>` | Delete a session |
+| `clear --all` | Delete every session and log |
 | `help [--json]` | Help (`--json` outputs a machine-readable command list) |
 
 Global options: `--db <path>`, `--config <path>`, `--pretty` (default output is JSON).

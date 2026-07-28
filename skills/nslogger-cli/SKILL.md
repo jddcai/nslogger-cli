@@ -51,6 +51,7 @@ Use only existing CLI flags — **do not invent new ones**.
 | Trace a time window (ms) | `nslogger-cli trace-range <session_id> --from <ms> --to <ms>` |
 | Import a .nslogger file | `nslogger-cli load <file.nslogger>` (prints the new `session_id`) |
 | Delete a session (destructive) | `nslogger-cli clear <session_id>` |
+| Delete everything (destructive) | `nslogger-cli clear --all` |
 
 **Global flags** (any command): `--db <path>` override database path, `--config <path>`
 override config file, `--pretty` human-readable output.
@@ -75,8 +76,17 @@ user expects live device logs:
 
 ## Notes
 
-- `clear` deletes all logs for that session — **confirm with the user before running it**.
-- The database defaults to `~/.nslogger-cli/logs.db`; `serve` (writer) and query commands
-  (readers) share the same database.
+- `clear` deletes all logs for that session, `clear --all` wipes every session —
+  **confirm with the user before running either**.
+- The database defaults to `/tmp/nslogger-cli/logs.db`; `serve` (writer) and query commands
+  (readers) share the same database. Being under `/tmp` means the OS eventually reclaims it —
+  a `database not found` error just means nothing has been imported or received since.
+- `watch` and `query --tui` are interactive TUIs and require a terminal —
+  **never run either from this skill**; they are for the user to run directly. Use plain
+  `query` instead, and suggest `nslogger-cli query ... --tui` when the user wants to read
+  a long result themselves.
 - Config lookup order: `--config` → `$NSLOGGER_CLI_CONFIG` → `~/.nslogger-cli/config.json`
   → `./config.json`.
+- A long-running `serve` can grow the database to many GB. `query` with only `--keyword` then
+  scans the whole table; add `--session <id>` (or `--level`) to bound it, and prefer `errors`
+  or `--limit` when a sample is enough.
