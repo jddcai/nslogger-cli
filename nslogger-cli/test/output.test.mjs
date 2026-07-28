@@ -51,6 +51,18 @@ test('formatLogLine omits the tag column when there is no tag', () => {
   assert.doesNotMatch(formatLogLine(logEntry({ tag: null }), 120), /\[/);
 });
 
+test('pretty output points a human at --tui, but stays quiet when piped', () => {
+  const was = process.stdout.isTTY;
+  try {
+    process.stdout.isTTY = true;
+    assert.match(formatResult({ data: [logEntry()], total: 1 }, true), /--tui/);
+    process.stdout.isTTY = false;
+    assert.doesNotMatch(formatResult({ data: [logEntry()], total: 1 }, true), /--tui/);
+  } finally {
+    process.stdout.isTTY = was;
+  }
+});
+
 test('formatResult pretty on empty array', () => {
   assert.equal(formatResult({ data: [], total: 0 }, true), '(empty)');
 });

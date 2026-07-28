@@ -4,6 +4,7 @@ import { loadConfig, resolveDbPath } from './config.js';
 import { parseArgs, flagStr, flagBool } from './cli/args.js';
 import { emit, emitError } from './cli/output.js';
 import { runServe } from './commands/serve.js';
+import { runWatch } from './commands/watch.js';
 import {
   cmdSessions, cmdQuery, cmdContext, cmdTraceThread,
   cmdTraceRange, cmdErrors, cmdLoad, cmdClear,
@@ -71,6 +72,17 @@ async function main(): Promise<void> {
   // load may create a fresh DB; all read/clear commands require it to already exist
   const mustExist = args.command !== 'load';
   const store = new LogStore(resolveDbPath(flagStr(args.flags, 'db'), configPath), { mustExist });
+
+  if (args.command === 'watch') {
+    await runWatch(store, args);
+    return;
+  }
+
+  // `query --tui` reuses the watch UI, seeded with the query's filters but not tailing.
+  if (args.command === 'query' && flagBool(args.flags, 'tui')) {
+    await runWatch(store, args, { follow: false, command: 'query --tui' });
+    return;
+  }
 
   switch (args.command) {
     case 'sessions':     emit(cmdSessions(store), pretty); return;

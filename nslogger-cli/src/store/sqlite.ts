@@ -164,6 +164,60 @@ export class LogStore {
     ).all(levelMin) as LogEntry[];
   }
 
+/** Highest log id currently stored, or 0 when empty. O(1) via the primary key index. */
+  maxLogId(): number {
+    return (this.db.prepare('SELECT MAX(id) AS m FROM logs').get() as { m: number | null }).m ?? 0;
+  }
+
+  /** The newest matching entries, oldest-first. `watch` seeds from here rather than from the
+   *  start of the table: on a large database, scanning forward for the first matches is both
+   *  slow and shows ancient logs, while scanning backward stops as soon as the limit is met. */
+  queryLatestLogs(opts: LogFilter & { limit?: number } = {}): LogEntry[] {
+    const { where, params } = this.buildFilter(opts);
+    params.limit = opts.limit ?? WATCH_BATCH_SIZE;
+    const rows = this.db.prepare(
+      `SELECT * FROM logs ${where ? `WHERE ${where}` : ''} ORDER BY id DESC LIMIT @limit`
+    ).all(params) as LogEntry[];
+    return rows.reverse();
+  }
+
+  /** Incremental fetch for `watch`: everything newer than a cursor id that matches the filters.
+   *  Ordered by id (insertion order) rather than timestamp so the cursor can never skip a row.
+   *  `max_id` bounds the scan so the caller knows exactly how far the table was read. */
+  queryLogsAfter(afterId: number, opts: LogFilter & { limit?: number; max_id?: number } = {}): LogEntry[] {
+    const { where, params } = this.buildFilter(opts, afterId);
+    params.limit = opts.limit ?? WATCH_BATCH_SIZE;
+    return this.db.prepare(
+      `SELECT * FROM logs WHERE ${where} ORDER BY id ASC LIMIT @limit`
+    ).all(params) as LogEntry[];
+  }
+
+  /** How many rows in (afterId, max_id] match the filters. Used while `watch` is paused, where
+   *  the entries themselves must not be consumed yet. Callers must advance `afterId` every tick
+   *  and accumulate the result — counting from a stale cursor rescans the whole table each time,
+   *  which on a multi-GB database blocks for tens of seconds. */
+  countLogsAfter(afterId: number, opts: LogFilter & { max_id?: number } = {}): number {
+    const { where, params } = this.buildFilter(opts, afterId);
+    return (this.db.prepare(
+      `SELECT COUNT(*) AS c FROM logs WHERE ${where}`
+    ).get(params) as { c: number }).c;
+  }
+
+  /** Shared WHERE builder. `afterId` adds the cursor bound; `opts.max_id` the upper bound. */
+  private buildFilter(opts: LogFilter & { max_id?: number }, afterId?: number) {
+    const conditions: string[] = [];
+    const params: Record<string, unknown> = {};
+
+    if (afterId != null)  { conditions.push('id > @after_id'); params.after_id = afterId; }
+    if (opts.max_id != null) { conditions.push('id <= @max_id'); params.max_id = opts.max_id; }
+    if (opts.session_id)  { conditions.push('session_id = @session_id'); params.session_id = opts.session_id; }
+    if (opts.tag)         { conditions.push('tag = @tag'); params.tag = opts.tag; }
+    if (opts.level_min != null) { conditions.push('level >= @level_min'); params.level_min = opts.level_min; }
+    if (opts.keyword)     { conditions.push('message LIKE @keyword'); params.keyword = `%${opts.keyword}%`; }
+
+    return { where: conditions.join(' AND '), params };
+  }
+
   clearSession(sessionId: string) {
     this.db.transaction(() => {
       this.db.prepare('DELETE FROM logs WHERE session_id = ?').run(sessionId);

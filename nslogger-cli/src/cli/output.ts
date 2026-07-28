@@ -41,6 +41,8 @@ function renderPretty(result: CommandResult): string {
       const width = terminalWidth();
       const lines = (data as LogEntry[]).map((e) => formatLogLine(e, width));
       lines.push(formatSummary(data.length, total));
+      // Only worth suggesting to a human at a terminal; noise for piped/AI callers.
+      if (process.stdout.isTTY) lines.push('use --tui to browse and expand entries interactively');
       return lines.join('\n');
     }
     return data.map((d) => JSON.stringify(d)).join('\n');

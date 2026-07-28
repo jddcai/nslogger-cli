@@ -16,7 +16,8 @@ export function cmdQuery(store: LogStore, args: ParsedArgs): CommandResult {
     session_id: flagStr(args.flags, 'session'),
     tag:        flagStr(args.flags, 'tag'),
     level_min:  flagNum(args.flags, 'level'),
-    keyword:    flagStr(args.flags, 'keyword'),
+    // A bare word is the common case (`query 场景值监测`), so treat it as --keyword.
+    keyword:    flagStr(args.flags, 'keyword') ?? args.positionals[0],
     limit:      flagNum(args.flags, 'limit'),
     offset:     flagNum(args.flags, 'offset'),
   });

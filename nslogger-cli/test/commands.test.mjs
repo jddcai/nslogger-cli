@@ -60,6 +60,69 @@ test('cmdClear rejects --all together with a session id', () => withDb(async (db
   );
 }));
 
+test('maxLogId reports the newest id, 0 when empty', () => withDb(async (db) => {
+  const empty = await makeStore(db);
+  assert.equal(empty.maxLogId(), 0);
+  const store = await seed(db);
+  assert.equal(store.maxLogId(), store.queryLogsAfter(0).pop().id);
+}));
+
+test('queryLatestLogs returns the newest matches, oldest-first', () => withDb(async (db) => {
+  const store = await seed(db);
+  const latest = store.queryLatestLogs({ limit: 1 });
+  assert.equal(latest.length, 1);
+  assert.equal(latest[0].message, 'boom error');          // the newest of the two seeded rows
+
+  const both = store.queryLatestLogs({});
+  assert.deepEqual(both.map((r) => r.message), ['hello world', 'boom error']);
+  assert.deepEqual(store.queryLatestLogs({ keyword: 'hello' }).map((r) => r.message), ['hello world']);
+}));
+
+test('max_id bounds both the fetch and the count', () => withDb(async (db) => {
+  const store = await seed(db);
+  const [first, second] = store.queryLogsAfter(0);
+
+  assert.equal(store.queryLogsAfter(0, { max_id: first.id }).length, 1);
+  assert.equal(store.countLogsAfter(0, { max_id: first.id }), 1);
+  assert.equal(store.countLogsAfter(first.id, { max_id: second.id }), 1);
+  // counting the same window twice must not double-count when the cursor advances
+  assert.equal(store.countLogsAfter(second.id, { max_id: second.id }), 0);
+}));
+
+test('countLogsAfter counts without consuming, honouring filters', () => withDb(async (db) => {
+  const store = await seed(db);
+  assert.equal(store.countLogsAfter(0), 2);
+  assert.equal(store.countLogsAfter(0, { level_min: 4 }), 1);
+  assert.equal(store.countLogsAfter(0, { keyword: 'hello' }), 1);
+
+  const all = store.queryLogsAfter(0);
+  assert.equal(store.countLogsAfter(all[1].id), 0);
+  // counting must not move anything: the same rows are still fetchable
+  assert.equal(store.queryLogsAfter(0).length, 2);
+}));
+
+test('cmdQuery treats a bare word as --keyword', () => withDb(async (db) => {
+  const store = await seed(db);
+  const r = cmds.cmdQuery(store, { command: 'query', positionals: ['hello'], flags: {} });
+  assert.equal(r.total, 1);
+  assert.equal(r.data[0].message, 'hello world');
+}));
+
+test('queryLogsAfter advances by cursor and honours filters', () => withDb(async (db) => {
+  const store = await seed(db);
+  const all = store.queryLogsAfter(0);
+  assert.equal(all.length, 2);
+
+  const after = store.queryLogsAfter(all[0].id);
+  assert.equal(after.length, 1);
+  assert.equal(after[0].id, all[1].id);
+
+  assert.equal(store.queryLogsAfter(0, { level_min: 4 }).length, 1);
+  assert.equal(store.queryLogsAfter(0, { keyword: 'hello' })[0].message, 'hello world');
+  assert.equal(store.queryLogsAfter(0, { limit: 1 }).length, 1);
+  assert.equal(store.queryLogsAfter(all[1].id).length, 0);
+}));
+
 test('cmdTraceThread returns thread entries', () => withDb(async (db) => {
   const store = await seed(db);
   const r = cmds.cmdTraceThread(store, { command: 'trace-thread', positionals: ['sess1', 't1'], flags: {} });
