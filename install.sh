@@ -43,12 +43,14 @@ cat <<EOF
 
   Try:      nslogger-cli help
   Config:   $CONFIG_HOME/config.json
-  DB:       ~/.nslogger-cli/logs.db (auto-created)
+  DB:       /tmp/nslogger-cli/logs.db (auto-created; the OS reclaims it in time)
 
   Real-time receive:  edit config (enable nslogger_tcp), then run
                       nslogger-cli serve
   Read a file:        nslogger-cli load <path.nslogger>
                       nslogger-cli query --keyword <text> --pretty
+  Upgrading? An existing $CONFIG_HOME/config.json is left untouched, so it
+  still points at the old ~/.nslogger-cli/logs.db. Edit "db_path" to switch.
 
   If 'nslogger-cli' is not found afterward, ensure your npm global
   bin dir is on PATH:  echo "\$(npm prefix -g)/bin"

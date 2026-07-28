@@ -2,6 +2,10 @@ import { readFileSync, existsSync } from 'fs';
 import { homedir } from 'os';
 import { resolve, join } from 'path';
 
+/** Default DB location. Deliberately under /tmp so the OS reclaims stale log caches
+ *  (macOS purges /private/tmp entries untouched for 3 days, WAL/SHM files included). */
+export const DEFAULT_DB_PATH = '/tmp/nslogger-cli/logs.db';
+
 export interface Config {
   db_path: string;
   watch_dirs: string[];
@@ -36,12 +40,12 @@ export function loadConfig(configPath?: string): Config {
 }
 
 /** Resolve the DB path for query commands without requiring a full/valid config.
- *  Order: --db flag > config file's db_path > ~/.nslogger-cli/logs.db default. */
+ *  Order: --db flag > config file's db_path > DEFAULT_DB_PATH. */
 export function resolveDbPath(dbFlag?: string, configPath?: string): string {
   if (dbFlag) return expandHome(dbFlag);
   try {
     return loadConfig(configPath).db_path;
   } catch {
-    return join(homedir(), '.nslogger-cli', 'logs.db');
+    return DEFAULT_DB_PATH;
   }
 }

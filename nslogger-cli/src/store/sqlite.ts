@@ -3,12 +3,25 @@ import { mkdirSync, existsSync } from 'fs';
 import { dirname } from 'path';
 import type { LogEntry, SessionInfo } from '../sources/types.js';
 
+/** Rows fetched per incremental poll in `watch`. Bounds memory and keeps each tick cheap. */
+export const WATCH_BATCH_SIZE = 500;
+
+export interface LogFilter {
+  session_id?: string;
+  tag?: string;
+  level_min?: number;
+  keyword?: string;
+}
+
 export class LogStore {
   private db: Database.Database;
 
   constructor(dbPath: string, opts: { mustExist?: boolean } = {}) {
     if (opts.mustExist && !existsSync(dbPath)) {
-      throw new Error(`database not found at ${dbPath}`);
+      // Under the default /tmp location the OS may have reclaimed it — say what to do next.
+      throw new Error(
+        `database not found at ${dbPath} — run 'nslogger-cli load <file.nslogger>' or start 'nslogger-cli serve' first`
+      );
     }
     mkdirSync(dirname(dbPath), { recursive: true });
     this.db = new Database(dbPath);

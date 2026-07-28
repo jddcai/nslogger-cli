@@ -1,5 +1,5 @@
 {
-  "db_path": "~/.nslogger-cli/logs.db",
+  "db_path": "/tmp/nslogger-cli/logs.db",
   "watch_dirs": [],
   "sources": {
     "nslogger_file": {
